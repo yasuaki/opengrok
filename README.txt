@@ -1,3 +1,8 @@
+#
+# Copyright (c) 2006, 2012, Oracle and/or its affiliates. All rights reserved.
+#
+
+
 OpenGrok - a wicked fast source browser
 ---------------------------------------
 
@@ -44,7 +49,7 @@ Offical page of the project is on:
         http://ant.apache.org/
       - JFlex
         http://www.jflex.org/
-      - Netbeans (optional, at least 7.1)
+      - Netbeans (optional, at least 7.1, will need Ant 1.8.1)
         http://netbeans.org/
 
 3. Usage
@@ -135,9 +140,9 @@ and run
 This command will do some sanity checks and will deploy the source.war in
 its directory to one of detected web application containers.
 Please follow the error message it provides.
+
 If it fails to discover your container, please refer to optional steps on
-changing web application properties, which has manual steps on how to do
-this.
+changing web application properties below, which explains how to do this.
 
 Note that OpenGrok script expects the directory /var/opengrok to be
 available to user running opengrok with all permissions. In root user case
@@ -281,17 +286,42 @@ web.xml of source.war file and change them (see note1) appropriately.
 	 The contents of this file file will be appended to the footer of each
 	 web page after the information about last index update.
 
-4.4.3 - Path Descriptions
--------------------------
+4.4.3 - Path Descriptions (optional)
+------------------------------------
 
-OpenGrok uses path descriptions in various places (For eg. while showing
-directory listings or search results) Example descriptions are in paths.tsv
-file. You can list descriptions for directories one per line tab separated
-format path tab description. Refer to example 4 below.
+OpenGrok can use path descriptions in various places (e.g. while showing
+directory listings or search results). Example descriptions are in paths.tsv
+file (delivered as /usr/opengrok/doc/paths.tsv by OpenGrok package on Solaris).
+The paths.tsv file is read by OpenGrok indexing script from the configuration
+directory (the same where configuration.xml is located) which will create file
+dtags.eftar in the index subdirectory under DATA_ROOT directory which will
+then be used by the webapp to display the descriptions.
 
-Note 1 - Changing webapp parameters: web.xml is the deployment descriptor
-for the web application. It is in a Jar file named source.war, you can
-change the :
+The file contains descriptions for directories one per line. Path to the
+directory and its description are separated by tab. The path to the directory
+is absolute path under the SRC_ROOT directory.
+
+For example, if the SRC_ROOT directory contains the following directories:
+
+foo
+bar
+bar/blah
+random
+random/code
+
+then the paths.tsv file contents can look like this:
+
+/foo	source code for foo
+/bar	source code for bar
+/bar/blah	source code for blah
+
+Note that only some paths can have a description.
+
+4.4.4 - Changing webapp parameters (optional)
+---------------------------------------------
+
+web.xml is the deployment descriptor for the web application. It is in a Jar
+file named source.war, you can change it as follows:
 
     * Option 1: Unzip the file to TOMCAT/webapps/source/ directory and
      change the source/WEB-INF/web.xml and other static html files like
@@ -336,6 +366,21 @@ change the :
 
      This file will contain something like the Context described above.
 
+4.4.5 Custom ctags configuration
+--------------------------------
+
+To make ctags recognize additional symbols/definitions/etc. it is possible to
+specify configuration file with extra configuration options for ctags.
+
+This can be done by setting OPENGROK_CTAGS_OPTIONS_FILE environment variable
+when running the OpenGrok shell script (or directly with the -o option for
+opengrok.jar). Default location for the configuration file in the OpenGrok
+shell script is etc/ctags.config under the OpenGrok base directory (by default
+the full path to the file will be /var/opengrok/etc/ctags.config).
+
+Sample configuration file for Solaris code base is delivered in the doc/
+directory.
+
 4.5 Using Java DB for history cache
 -----------------------------------
 
@@ -363,8 +408,6 @@ Debian/Ubuntu:
   Java DB server is the default option, we will not describe how to set up the
   embedded one.
 
-  $ mkdir -p $DATA_ROOT/derby
-
   Solaris 11:
 
     Use one of the following methods to start the database:
@@ -375,11 +418,13 @@ Debian/Ubuntu:
   
     b) from command line:
   
+       $ mkdir -p $DATA_ROOT/derby
        $ java -Dderby.system.home=$DATA_ROOT/derby \
            -jar /opt/SUNWjavadb/lib/derbynet.jar start
   
   Debian:
 
+    $ mkdir -p $DATA_ROOT/derby
     $ java -Dderby.system.home=$DATA_ROOT/derby \
           -jar /usr/lib/jvm/java-6-sun/db/lib/derbynet.jar start
 
@@ -413,9 +458,18 @@ application.
 
 Note: To use a bigger database buffer, which may improve performance of both
 indexing and fetching of history, create a file named derby.properties in
-$DATA_ROOT/derby and add this line to it:
+the JavaDB data directory and add this line to it:
 
-derby.storage.pageCacheSize=25000
+  - If using specific data directory:
+
+    # echo "derby.storage.pageCacheSize=25000" >> \
+          $DATA_ROOT/derby/derby.properties
+
+  - Using default directory on Solaris with JavaDB being run from SMF:
+
+    # echo "derby.storage.pageCacheSize=25000" >> \
+          /var/lib/javadb/data/derby.properties
+
 
 5. Optional Command Line Interface Usage
 ----------------------------------------
@@ -506,7 +560,48 @@ This agent is work in progress, so it might not fully work.
 8. Information for developers
 -----------------------------
 
-8.1 Using Findbugs
+8.0 Building
+------------
+
+Just run 'ant' from command line in the top-level directory or use build
+process driven by graphical developer environment such as Netbeans.
+
+8.0.1 Package build
+-----------------
+
+Run 'ant package' to create package (specific for the operating system this is
+being executed on) under the dist/ directory.
+
+8.1 Unit testing
+----------------
+
+Note: For full coverage report your system has to provide proper junit test 
+environment, that would mean:
+
+  - you have to use Ant 1.7 and above
+  - at least junit-4.10.jar has to be in ant's classpath (e.g. in ./lib)
+    - Example install in the top of the opengrok repository:
+
+      $ cd lib
+      $ wget http://.../junit-4.10.jar
+      $ jar -xf junit-4.10.jar
+
+  - install derby.jar to ant's classpath so that Java DB tests can be run
+  - your PATH must contain directory with exuberant ctags binary
+    - Note: make sure that the directory which contains exuberant ctags binary
+      is prepended before the directory with plain ctags program.
+  - your PATH variable must contain directories which contain binaries of
+    appropriate SCM software which means commands hg, sccs, cvs, git, bzr, svn
+    (svnadmin too). They must be available for the full report.
+
+The tests are then run as follows:
+
+  $ ant -lib ./lib test
+
+To check if the test completed without error look for AssertionFailedError
+occurences in the TESTS-TestSuites.xml file produced by the test run.
+
+8.2 Using Findbugs
 ------------------
 
 If you want to run Findbugs (http://findbugs.sourceforge.net/) on OpenGrok,
@@ -541,7 +636,7 @@ under the lib directory):
 There is also a findbugs-xml ant target that can be used to generate XML files
 that can later be parsed, e.g. by Jenkins.
 
-8.2 Using Emma
+8.3 Using Emma
 --------------
 
 If you want to check test coverage on OpenGrok, download Emma from
@@ -592,17 +687,7 @@ To generate reports, run ant again:
 Look at coverage/coverage.txt, coverage/coverage.xml and 
 coverage/coverage.html to see how complete your tests are.
 
-Note: For full coverage report your system has to provide proper junit test 
-environment, that would mean:
-
-  - you have to use ant 1.7 and above
-  - at least junit-4.?.jar has to be in ants classpath (e.g. in ./lib)
-  - your PATH must contain exuberant ctags binary
-  - your PATH variable must contain binaries of appropriate SCM SW, so
-    commands hg, sccs, cvs, git, bzr, svn (svnadmin too) must be available for
-    the full report.
-
-8.3 Using Checkstyle
+8.4 Using Checkstyle
 --------------------
 
 To check that your code follows the standard coding conventions,
@@ -636,7 +721,7 @@ checkstyle under the lib directory):
 
   $ ant checkstyle -Dcheckstyle.home=lib/checkstyle
 
-8.4 Using PMD and CPD
+8.5 Using PMD and CPD
 ---------------------
 
 To check the quality of the OpenGrok code you can also use PMD
@@ -679,7 +764,7 @@ Which will result in:
   $ ls pmd
   cpd_report.xml cpd_report.txt
 
-8.5 Using JDepend
+8.6 Using JDepend
 ---------------------
 
 To see dependencies in the source code, you can use JDepend from
